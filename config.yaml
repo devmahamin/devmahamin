@@ -1,0 +1,125 @@
+receivers:
+  hostmetrics:
+    collection_interval: 20s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      load:
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk:
+      filesystem:
+        metrics:
+          system.filesystem.utilization:
+            enabled: true
+      network:
+      paging:
+        metrics:
+          system.paging.utilization:
+            enabled: true
+      processes:
+      process:
+        metrics:
+          process.threads:
+            enabled: true
+
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1000
+    spike_limit_mib: 200
+  batch:
+#  cumulativetodelta:
+#    metrics:
+      # - system.network.io
+      # - system.disk.operations
+      # - system.network.dropped
+      # - system.network.packets
+      # - process.cpu.time
+  resource:
+    attributes:
+      - key: host.id
+        from_attribute: host.name
+        action: upsert
+  resourcedetection:
+    detectors: [env, gce, ecs, ec2, azure, system]
+    override: true
+
+
+
+exporters:
+  logging:
+    loglevel: debug
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  splunk_hec/metrics:
+      # Splunk HTTP Event Collector token.
+      token: "ae5c1946-2036-404c-87ab-a02be7018ade"
+      # URL to a Splunk instance to send data to.
+      endpoint: "https://34.79.95.67:8088/services/collector"
+      # Optional Splunk source: https://docs.splunk.com/Splexicon:Source
+      source: "dt-aws-metrics"
+      # Optional Splunk source type: https://docs.splunk.com/Splexicon:Sourcetype
+      sourcetype: "hostmetrics"
+      # Splunk index, optional name of the Splunk index targeted.
+      index: "dt-aws-metrics"
+      # Maximum HTTP connections to use simultaneously when sending data. Defaults to 100.
+      max_connections: 20
+      # Whether to disable gzip compression over HTTP. Defaults to false.
+      disable_compression: false
+      # HTTP timeout when sending data. Defaults to 10s.
+      timeout: 10s
+      # Whether to skip checking the certificate of the HEC endpoint when sending data over HTTPS. Defaults to false.
+      # For this demo, we use a self-signed certificate on the Splunk docker instance, so this flag is set to true.
+      tls:
+        insecure_skip_verify: true
+  splunk_hec/logs:
+      # Splunk HTTP Event Collector token.
+      token: "4bf87be2-df17-4274-8656-ab4713273d09"
+      # URL to a Splunk instance to send data to.
+      endpoint: "https://34.79.95.67:8088/services/collector"
+      # Optional Splunk source: https://docs.splunk.com/Splexicon:Source
+      source: "otel"
+      # Optional Splunk source type: https://docs.splunk.com/Splexicon:Sourcetype
+      sourcetype: "_json"
+      # Splunk index, optional name of the Splunk index targeted.
+      index: "dt-azure"
+      # Maximum HTTP connections to use simultaneously when sending data. Defaults to 100.
+      max_connections: 20
+      # Whether to disable gzip compression over HTTP. Defaults to false.
+      disable_compression: false
+      # HTTP timeout when sending data. Defaults to 10s.
+      timeout: 10s
+      # Whether to skip checking the certificate of the HEC endpoint when sending data over HTTPS. Defaults to false.
+      # For this demo, we use a self-signed certificate on the Splunk docker instance, so this flag is set to true.
+      tls:
+        insecure_skip_verify: true
+
+extensions:
+    health_check:
+      endpoint: 0.0.0.0:13133
+    pprof:
+      endpoint: :1888
+    zpages:
+      endpoint: :55679
+
+service:
+    extensions: [pprof, zpages, health_check]
+    pipelines:
+      metrics:
+        receivers: [hostmetrics]
+        processors: [memory_limiter, batch, resourcedetection]
+        exporters: [splunk_hec/metrics, logging]
+      # logs:
+      #   receivers: [otlp, fluentforward]
+      #   processors:
+      #   - memory_limiter
+      #   - batch
+      #   - resourcedetection
+      #   exporters: [splunk_hec/logs, logging]
